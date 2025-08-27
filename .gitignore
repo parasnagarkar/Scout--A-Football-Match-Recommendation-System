@@ -1,0 +1,15 @@
+# Ignore Python-specific files
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Ignore the large database file
+database.sqlite
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore other unnecessary files
+*.log.

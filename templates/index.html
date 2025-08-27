@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Match Recommender</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="image-slideshow">
+        <img src="{{ url_for('static', filename='backimages/img1.jpeg') }}" class="active" alt="Football Image 1">
+        <img src="{{ url_for('static', filename='backimages/img2.jpg') }}" alt="Football Image 2">
+        <img src="{{ url_for('static', filename='backimages/img3.jpeg') }}" alt="Football Image 3">
+        </div>
+
+    <div class="navbar">
+        <div class="logo-container">
+            <div class="navbar-brand">
+                <span class="letter">F</span>
+                <span class="letter">O</span>
+                <span class="letter">O</span>
+                <span class="letter">T</span>
+                <span class="letter">B</span>
+                <span class="letter">A</span>
+                <span class="letter">L</span>
+                <span class="letter">L</span>
+            </div>
+            <button id="home-button" class="btn btn-light mt-2">Home</button>
+        </div>
+    </div>
+
+    <div class="container mt-4 d-flex">
+        <div class="search-container">
+            <form id="search-form" class="form-inline justify-content-start">
+                <input type="text" id="match-id-input" class="form-control mr-2" placeholder="Enter Match ID (e.g., 492473)" required>
+                <button type="submit" class="btn btn-light">Get Recommendations</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="recommendations" class="container recommendations-container">
+        <div class="row">
+            </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        // Slideshow logic
+        const images = document.querySelectorAll('#image-slideshow img');
+        let currentIndex = 0;
+        function showNextImage() {
+            images[currentIndex].classList.remove('active');
+            currentIndex = (currentIndex + 1) % images.length;
+            images[currentIndex].classList.add('active');
+        }
+        setInterval(showNextImage, 3000);
+
+        const form = document.getElementById('search-form');
+        const recommendationsRow = document.querySelector('#recommendations .row');
+
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const matchId = document.getElementById('match-id-input').value;
+
+            recommendationsRow.innerHTML = ''; // Clear previous recommendations
+
+            if (!matchId) {
+                recommendationsRow.innerHTML = '<p class="no-recommendations col-12">Please enter a Match ID.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/recommend?match_id=${encodeURIComponent(matchId)}`);
+                const recommendations = await response.json();
+
+                if (response.ok && Array.isArray(recommendations) && recommendations.length > 0) {
+                    recommendations.forEach(match => {
+                        const colDiv = document.createElement('div');
+                        colDiv.className = 'col-md-4 mb-4'; // Bootstrap column for card layout
+
+                        colDiv.innerHTML = `
+                            <div class="match-card">
+                                <h5>${match.home_team_name} vs ${match.away_team_name}</h5>
+                                <p><strong>League:</strong> ${match.league_name}</p>
+                                <p><strong>Date:</strong> ${match.date}</p>
+                                <p><strong>Score:</strong> ${match.home_team_goal} - ${match.away_team_goal}</p>
+                                <p><strong>Total Goals:</strong> ${match.total_goals}</p>
+                                <p><strong>Outcome:</strong> ${match.match_outcome}</p>
+                                <p><strong>Excitement:</strong> ${match.excitement_score.toFixed(2)}</p>
+                                <p><strong>Similarity:</strong> ${match.similarity_score.toFixed(4)}</p>
+                                <button class="btn btn-primary btn-sm mt-2" onclick="getRecommendationsForNewMatch(${match.match_api_id})">Recommend More Like This</button>
+                            </div>
+                        `;
+                        recommendationsRow.appendChild(colDiv);
+                    });
+                } else if (recommendations.message) {
+                    recommendationsRow.innerHTML = `<p class="no-recommendations col-12">${recommendations.message}</p>`;
+                } else {
+                    recommendationsRow.innerHTML = '<p class="no-recommendations col-12">No recommendations found or an unknown error occurred.</p>';
+                }
+            } catch (error) {
+                console.error("Error fetching recommendations:", error);
+                recommendationsRow.innerHTML = '<p class="no-recommendations col-12">An error occurred while fetching recommendations. Please check your connection or the Match ID.</p>';
+            }
+        });
+
+        // Function to trigger new recommendations from a recommended match card
+        function getRecommendationsForNewMatch(matchId) {
+            document.getElementById('match-id-input').value = matchId;
+            form.dispatchEvent(new Event('submit')); // Programmatically trigger form submission
+        }
+
+        // Redirect to homepage on Home button click
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = '/';
+        });
+    </script>
+</body>
+</html>

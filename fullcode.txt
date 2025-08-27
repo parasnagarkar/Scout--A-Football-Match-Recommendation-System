@@ -1,0 +1,508 @@
+from flask import Flask, request, jsonify, render_template
+import pandas as pd
+import requests
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import logging
+
+app = Flask(__name__)
+
+# Load your dataset
+dataset = pd.read_csv('C:\\Users\\roopa\\OneDrive\\Desktop\\MoviesRecommender\\movies.csv')
+
+# Fill missing values and create combined features
+dataset['genre'] = dataset['genre'].fillna('unknown')
+dataset['overview'] = dataset['overview'].fillna('')
+dataset['combined_features'] = dataset['genre'] + ' ' + dataset['overview']
+
+# Create TF-IDF Matrix
+tfidf = TfidfVectorizer(stop_words='english', ngram_range=(1, 2), max_features=5000)
+tfidf_matrix = tfidf.fit_transform(dataset['combined_features'])
+
+# Calculate Cosine Similarity
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Define your OMDb API key here
+OMDB_API_KEY = "6f5cb803"
+
+def recommend_movies_hierarchical(title_substring, num_recommendations=10):
+    title_substring = title_substring.lower().strip()
+    filtered_titles = dataset[dataset['title'].str.lower().str.contains(title_substring)]
+
+    if filtered_titles.empty:
+        words = title_substring.split()
+        if len(words) > 1:
+            substring_without_last = ' '.join(words[:-1])
+            filtered_titles = dataset[dataset['title'].str.lower().str.contains(substring_without_last)]
+
+    if filtered_titles.empty:
+        return []
+
+    filtered_indices = filtered_titles.index.tolist()
+    filtered_cosine_sim = cosine_sim[filtered_indices, :][:, filtered_indices]
+    sim_scores = list(enumerate(filtered_cosine_sim.sum(axis=1)))
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    movie_indices = [filtered_indices[i[0]] for i in sim_scores[:num_recommendations]]
+
+    recommendations = []
+    for idx in movie_indices:
+        movie_title = dataset['title'].iloc[idx]
+        release_date = dataset['release_date'].iloc[idx]  # Get the full release date
+
+        # Make the API request with the correct URL format
+        response = requests.get(f"http://www.omdbapi.com/?t={movie_title}&apikey={OMDB_API_KEY}")
+        movie_data = response.json()
+
+        # Log the response for debugging
+        logging.debug(f"OMDb API response for '{movie_title}': {movie_data}")
+
+        if movie_data.get("Response") == "True":
+            recommendations.append({
+                'title': movie_title,
+                'overview': movie_data.get("Plot", "Overview not available"),
+                'poster_url': movie_data.get("Poster", "https://via.placeholder.com/300x450?text=No+Image+Available"),
+                'rating': movie_data.get("imdbRating", "N/A"),
+                'popularity': movie_data.get("Metascore", "N/A"),
+                'release_date': release_date  # Store the full release date
+            })
+        else:
+            logging.warning(f"Could not fetch data for '{movie_title}': {movie_data.get('Error')}")
+
+    return recommendations
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/recommend', methods=['GET'])
+def recommend():
+    title = request.args.get('title', '')
+    if not title:
+        return jsonify({"error": "Please provide a movie title."}), 400
+
+    recommendations = recommend_movies_hierarchical(title)
+    return jsonify(recommendations)
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recflix</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Google Font: Pacifico -->
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <style>
+        /* Fullscreen slideshow styles */
+        #image-slideshow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: -1; /* Places it behind other elements */
+        }
+
+        #image-slideshow img {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        #image-slideshow img.active {
+            opacity: 1;
+        }
+
+        /* Positioning the search bar */
+        .search-container {
+            position: relative;
+            z-index: 3; /* Above slideshow */
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-start;
+            padding-left: 30px;
+        }
+
+        #search-form {
+            margin-left: -300px;
+        }
+
+        /* Styling for the Home button */
+        #home-button {
+            display: block;
+            margin-top: 10px;
+            margin-left: 30px; /* Aligns with the logo's left padding */
+        }
+
+        /* Movie section styling */
+        .movie-section {
+            display: none; /* Initially hidden */
+            margin-top: 20px;
+        }
+
+        /* Movie card styling */
+        .movie-card {
+            background-color: #444444;
+            color: white;
+            border: none;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+
+        .no-recommendations {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo-container">
+            <div class="navbar-brand">
+                <span class="letter">R</span>
+                <span class="letter">E</span>
+                <span class="letter">C</span>
+                <span class="letter">F</span>
+                <span class="letter">L</span>
+                <span class="letter">I</span>
+                <span class="letter">X</span>
+            </div>
+            
+            <!-- Home Button -->
+            <button id="home-button" class="btn btn-light mt-2">Home</button>
+        </div>
+    </div>
+
+    <!-- Fullscreen Slideshow -->
+    <div id="image-slideshow">
+        <!-- Images for the slideshow -->
+        <img src="{{ url_for('static', filename='backimages/img13.jpeg') }}" class="active" alt="Image 1">
+        <img src="{{ url_for('static', filename='backimages/img2.jpg') }}" alt="Image 2">
+        <img src="{{ url_for('static', filename='backimages/img3.jpeg') }}" alt="Image 3">
+        <img src="{{ url_for('static', filename='backimages/img4.jpg') }}" alt="Image 4">
+        <img src="{{ url_for('static', filename='backimages/img5.jpeg') }}" alt="Image 5">
+        <img src="{{ url_for('static', filename='backimages/img6.jpg') }}" alt="Image 6">
+        <img src="{{ url_for('static', filename='backimages/img7.jpeg') }}" alt="Image 7">
+        <img src="{{ url_for('static', filename='backimages/img8.jpg') }}" alt="Image 8">
+        <img src="{{ url_for('static', filename='backimages/img9.jpeg') }}" alt="Image 9">
+        <img src="{{ url_for('static', filename='backimages/img10.jpg') }}" alt="Image 10">
+        <img src="{{ url_for('static', filename='backimages/img11.jpg') }}" alt="Image 11">
+        <img src="{{ url_for('static', filename='backimages/img12.jpeg') }}" alt="Image 12">
+        <img src="{{ url_for('static', filename='backimages/img1.jpeg') }}" alt="Image 13">
+        <img src="{{ url_for('static', filename='backimages/img14.jpg') }}" alt="Image 14">
+        <img src="{{ url_for('static', filename='backimages/img15.jpeg') }}" alt="Image 15">
+        <img src="{{ url_for('static', filename='backimages/img16.jpeg') }}" alt="Image 16">
+        <img src="{{ url_for('static', filename='backimages/img17.jpeg') }}" alt="Image 17">
+        <img src="{{ url_for('static', filename='backimages/img18.jpeg') }}" alt="Image 18">
+    </div>
+
+    <div class="container mt-4 d-flex">
+        <div class="search-container">
+            <form id="search-form" class="form-inline justify-content-start">
+                <input type="text" id="movie-input" class="form-control mr-2" placeholder="Enter Keywords..." required>
+                <button type="submit" class="btn btn-light">Search</button>
+            </form>
+        </div>
+
+        <div id="recommendations" class="recommendations-container ml-3">
+            <div class="row">
+                <!-- Recommendations will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Genre Movies Section -->
+    <div id="movies-section" class="container mt-4">
+        <div id="action-section" class="movie-section">
+            <h2>Action Movies</h2>
+            <div id="action-list"></div>
+        </div>
+        <div id="adventure-section" class="movie-section">
+            <h2>Adventure Movies</h2>
+            <div id="adventure-list"></div>
+        </div>
+        <!-- Add more sections as needed -->
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.0.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        const images = document.querySelectorAll('#image-slideshow img');
+        let currentIndex = 0;
+
+        function showNextImage() {
+            images[currentIndex].classList.remove('active');
+            currentIndex = (currentIndex + 1) % images.length;
+            images[currentIndex].classList.add('active');
+        }
+
+        setInterval(showNextImage, 3000); // Change image every 3 seconds
+
+        const form = document.getElementById('search-form');
+        const recommendationsDiv = document.getElementById('recommendations');
+
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const movieTitle = document.getElementById('movie-input').value;
+
+            const response = await fetch(`/recommend?title=${encodeURIComponent(movieTitle)}`);
+            const recommendations = await response.json();
+
+            recommendationsDiv.innerHTML = '';
+
+            if (Array.isArray(recommendations) && recommendations.length > 0) {
+                recommendations.forEach(movie => {
+                    const colDiv = document.createElement('div');
+                    colDiv.className = 'col-md-3 mb-3';
+
+                    colDiv.innerHTML = `
+                        <div class="card">
+                            <img src="${movie.poster_url}" class="card-img-top" alt="${movie.title}">
+                            <div class="card-body">
+                                <h5 class="card-title">${movie.title}</h5>
+                                <p class="card-text">${movie.overview}</p>
+                                <p><strong>Rating:</strong> ${movie.rating}</p>
+                                <p><strong>Popularity:</strong> ${movie.popularity}</p>
+                                <p><strong>Release Date:</strong> ${movie.release_date}</p>
+                                <a href="#" class="btn btn-light">View Details</a>
+                            </div>
+                        </div>
+                    `;
+                    recommendationsDiv.appendChild(colDiv);
+                });
+            } else {
+                recommendationsDiv.innerHTML = '<p class="no-recommendations">No Recommendations Found.</p>';
+            }
+        });
+
+        // Redirect to homepage on Home button click
+        document.getElementById('home-button').addEventListener('click', function() {
+            window.location.href = '/';
+        });
+
+        // Handle genre button clicks
+        const genreButtons = document.querySelectorAll('.genre-button');
+        genreButtons.forEach(button => {
+            button.addEventListener('click', async function() {
+                const genre = button.getAttribute('data-genre');
+                const moviesList = document.getElementById(`${genre}-list`);
+                const moviesSection = document.getElementById(`${genre}-section`);
+
+                const response = await fetch(`/movies?genre=${encodeURIComponent(genre)}`);
+                const movies = await response.json();
+
+                moviesList.innerHTML = ''; // Clear previous movies
+                moviesSection.style.display = 'block'; // Show the section
+
+                if (Array.isArray(movies) && movies.length > 0) {
+                    movies.forEach(movie => {
+                        const movieCard = document.createElement('div');
+                        movieCard.className = 'movie-card';
+                        movieCard.innerHTML = `
+                            <h5>${movie.title}</h5>
+                            <p>${movie.overview}</p>
+                        `;
+                        moviesList.appendChild(movieCard);
+                    });
+                } else {
+                    moviesList.innerHTML = '<p class="no-recommendations">No Movies Found for this Genre.</p>';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+/* General body styling */
+body {
+    background: url("../static/background.jpeg") no-repeat center center fixed;
+    background-size: cover;
+    color: white;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    z-index: -1; /* Ensure body background is at the lowest layer */
+}
+
+/* Import Bebas Neue font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
+
+/* Logo container for black box */
+.logo-container {
+    background-color: black;
+    padding: 10px;
+    display: inline-block;
+    border-radius: 5px;
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    z-index: 4; /* Highest layer for the logo */
+}
+
+/* Navbar styling */
+.navbar {
+    background: none;
+    padding: 20px 30px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    z-index: 3; /* Make sure navbar is above the slideshow */
+}
+
+/* Brand styling for "RECFLIX" */
+.navbar-brand {
+    display: flex;
+    font-family: 'Pacifico', cursive; /* Apply artistic font */
+    text-shadow: 0px 0px 8px rgba(30, 144, 255, 0.8); /* Overall glow */
+}
+
+/* Consistent styling for all letters */
+.navbar-brand .letter {
+    font-weight: bold;
+    font-family: 'Bebas Neue', sans-serif; /* Apply cool font */
+    letter-spacing: 0.05em;
+    line-height: 1;
+    color: #1E90FF; /* Text color */
+}
+
+/* Individual letter styling with sizes */
+.navbar-brand .letter:nth-child(1) { font-size: 3.8rem; }
+.navbar-brand .letter:nth-child(2) { font-size: 3.2rem; }
+.navbar-brand .letter:nth-child(3) { font-size: 2.8rem; }
+.navbar-brand .letter:nth-child(4) { font-size: 2.5rem; }
+.navbar-brand .letter:nth-child(5) { font-size: 2.8rem; }
+.navbar-brand .letter:nth-child(6) { font-size: 3.2rem; }
+.navbar-brand .letter:nth-child(7) { font-size: 3.8rem; }
+
+/* Styling for search container */
+#search-form {
+    position: absolute;
+    z-index: 3; /* Above slideshow */
+    margin-top: 200px; /* Adjust space below the slideshow */
+    margin-left: -500px; /* Use negative margin to shift left */
+    display: flex;
+    align-items: center;
+}
+
+/* Search input styling */
+#search-form input[type="text"] {
+    width: 300px; /* Increase width of the search bar */
+    padding: 10px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px 0 0 5px; /* Rounded corners on the left side */
+    color: black;
+    background-color: white;
+}
+
+#search-form input[type="text"]::placeholder {
+    color: #888;
+    font-style: italic;
+}
+
+/* Search button styling */
+#search-form button {
+    padding: 10px 20px;
+    background-color: #1E90FF; /* Light blue background for button */
+    color: white; /* White text */
+    border: none;
+    border-radius: 0 5px 5px 0; /* Rounded corners on the right side */
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Bebas Neue', sans-serif;
+}
+
+/* Hover effect for search button */
+#search-form button:hover {
+    background-color: #1C86EE; /* Slightly darker blue on hover */
+}
+
+/* Styling for recommendation cards */
+.card {
+    background-color: #333333;
+    color: white;
+    border: none;
+}
+
+.card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+}
+
+/* Align search and recommendations side-by-side */
+.container.mt-4.d-flex {
+    display: flex;
+}
+
+/* Recommendations container styling */
+.recommendations-container {
+    display: flex;
+    flex-direction: row;
+    margin-left: 100px; /* Adjust space between search and recommendations */
+    margin-top: 200px; /* Added margin to separate from genres */
+}
+
+/* Ensure recommendation cards wrap within the row */
+.recommendations-container .row {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/* Styling for the Home button */
+#home-button {
+    background-color: #1E90FF; /* Light blue background for button */
+    color: white; /* White text */
+    border: none;
+    border-radius: 5px; /* Rounded corners */
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Bebas Neue', sans-serif;
+    display: block;
+    width: 100px; /* Match width with search button */
+    text-align: center;
+    margin-top: 10px; /* Space below the RECFLIX logo */
+}
+
+/* Hover effect for Home button */
+#home-button:hover {
+    background-color: #1C86EE; /* Slightly darker blue on hover */
+}
+
+/* No recommendations text styling */
+.no-recommendations {
+    font-size: 3rem; /* Adjust font size as needed */
+    text-align: center; /* Center-align the text */
+    color: #FF4500; /* Change color to a visible shade, e.g., orange-red */
+    margin-top: 20px; /* Add some spacing above the message */
+    -webkit-text-stroke: 1px black; /* Black border around the text */
+    font-weight: bold;  
+    padding: 10px; /* Adds space between the text and border */
+    display: inline-block; /* Ensures the border wraps tightly around the text */
+    border-radius: 5px; /* Optional: rounded corners */
+}

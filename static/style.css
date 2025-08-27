@@ -1,0 +1,197 @@
+/* General body styling */
+body {
+    /* Replace 'background.jpeg' with a football-themed image in static/backimages/ */
+    background: url("../static/background.jpeg") no-repeat center center fixed;
+    background-size: cover;
+    color: white;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* Import Bebas Neue font from Google Fonts for a sporty feel */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
+/* Keep Pacifico if you want an artistic touch for the brand name, otherwise remove */
+@import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
+
+
+/* Logo container for black box */
+.logo-container {
+    background-color: black;
+    padding: 10px;
+    display: inline-block;
+    border-radius: 5px;
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    z-index: 4;
+}
+
+/* Navbar styling */
+.navbar {
+    background: none;
+    padding: 20px 30px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    z-index: 3;
+}
+
+/* Brand styling for "FOOTBALL" */
+.navbar-brand {
+    display: flex;
+    font-family: 'Bebas Neue', sans-serif;
+    text-shadow: 0px 0px 8px rgba(30, 144, 255, 0.8);
+}
+
+/* Individual letter styling with sizes for "FOOTBALL" staggered effect */
+.navbar-brand .letter {
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    color: #1E90FF; /* Text color */
+}
+.navbar-brand .letter:nth-child(1) { font-size: 3.8rem; } /* F */
+.navbar-brand .letter:nth-child(2) { font-size: 3.2rem; } /* O */
+.navbar-brand .letter:nth-child(3) { font-size: 2.8rem; } /* O */
+.navbar-brand .letter:nth-child(4) { font-size: 2.5rem; } /* T */
+.navbar-brand .letter:nth-child(5) { font-size: 2.8rem; } /* B */
+.navbar-brand .letter:nth-child(6) { font-size: 3.2rem; } /* A */
+.navbar-brand .letter:nth-child(7) { font-size: 3.8rem; } /* L */
+.navbar-brand .letter:nth-child(8) { font-size: 3.2rem; } /* L */
+
+
+/* Search container and form styling */
+.search-container {
+    position: relative;
+    z-index: 3;
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-start;
+    padding-left: 30px;
+    width: 100%;
+}
+
+#search-form {
+    margin-left: 0;
+    display: flex;
+    align-items: center;
+    width: auto;
+}
+
+#search-form input[type="text"] {
+    width: 300px;
+    padding: 10px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px 0 0 5px;
+    color: black;
+    background-color: white;
+}
+
+#search-form input[type="text"]::placeholder {
+    color: #888;
+    font-style: italic;
+}
+
+#search-form button {
+    padding: 10px 20px;
+    background-color: #1E90FF;
+    color: white;
+    border: none;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Bebas Neue', sans-serif;
+}
+
+#search-form button:hover {
+    background-color: #1C86EE;
+}
+
+/* Match card styling */
+.match-card {
+    background-color: rgba(68, 68, 68, 0.8);
+    color: white;
+    border: none;
+    padding: 15px;
+    margin: 10px; /* Add margin around cards for spacing */
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+    text-align: center;
+}
+
+.match-card:hover {
+    transform: translateY(-5px);
+}
+
+.match-card h5 {
+    font-size: 1.25rem;
+    margin-bottom: 5px;
+    font-family: 'Bebas Neue', sans-serif;
+    color: #FFD700; /* Gold color for titles */
+}
+
+.match-card p {
+    font-size: 0.9rem;
+    margin-bottom: 3px;
+}
+
+.match-card strong {
+    color: #ADD8E6; /* Light blue for strong text */
+}
+
+/* Ensure recommendations container is block for proper stacking below search */
+.container.mt-4.d-flex {
+    display: block;
+    margin-top: 150px; /* Adjust to clear slideshow */
+}
+
+/* Recommendations container styling */
+.recommendations-container {
+    margin-top: 50px; /* Space below the search bar */
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+/* Ensure recommendation cards wrap within the row */
+.recommendations-container .row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+/* Home button styling */
+#home-button {
+    background-color: #1E90FF;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-family: 'Bebas Neue', sans-serif;
+    display: block;
+    width: 100px;
+    text-align: center;
+    margin-top: 10px;
+}
+
+#home-button:hover {
+    background-color: #1C86EE;
+}
+
+/* No recommendations text styling */
+.no-recommendations {
+    font-size: 2rem;
+    text-align: center;
+    color: #FF4500;
+    margin-top: 40px;
+    -webkit-text-stroke: 1px black;
+    font-weight: bold;
+    padding: 10px;
+    display: inline-block;
+    border-radius: 5px;
+    width: 100%;
+}
